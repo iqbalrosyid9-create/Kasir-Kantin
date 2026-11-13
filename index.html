@@ -162,9 +162,14 @@
         <!-- Info Santri Terpilih -->
         <div class="flex items-start justify-between bg-teal-50/70 p-3 rounded-xl border border-teal-100">
           <div>
-            <span class="text-[10px] font-extrabold uppercase tracking-wider bg-teal-700 text-white px-2 py-0.5 rounded">
-              NIS: <span id="posNis">-</span>
-            </span>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] font-extrabold uppercase tracking-wider bg-teal-700 text-white px-2 py-0.5 rounded">
+                NIS: <span id="posNis">-</span>
+              </span>
+              <span id="posAsrama" class="text-[10px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
+                -
+              </span>
+            </div>
             <h3 id="posNama" class="text-base font-extrabold text-slate-800 mt-1">-</h3>
             <p class="text-[11px] text-slate-500">Kelas <strong id="posKelas">-</strong> • Kamar <strong id="posKamar">-</strong></p>
           </div>
@@ -292,7 +297,7 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbwiku-hOfT9_BUWZyTOCW2VlqGp4Rim9QQ8I2BEX_pTO0EXfvh1Y27a8eNYktHRIi15/exec";
 
     let daftarKantin = [];
-    let activeKantin = null; // { id, nama, pin }
+    let activeKantin = null; // { id, nama, pin, asrama }
     let daftarSantri = [];
     let riwayatHariIni = [];
     let selectedSantri = null;
@@ -355,7 +360,7 @@
         if (!data.success) throw new Error(data.error || 'Gagal memuat kantin');
         daftarKantin = data.kantin || [];
         select.innerHTML = '<option value="">-- Pilih Unit Kantin --</option>' +
-          daftarKantin.map(k => `<option value="${k.id}">${k.nama} (${k.id})</option>`).join('');
+          daftarKantin.map(k => `<option value="${k.id}">${k.nama} (${k.asrama || 'Semua'})</option>`).join('');
       } catch (err) {
         select.innerHTML = '<option value="">Gagal memuat data kantin</option>';
       }
@@ -391,8 +396,8 @@
       document.getElementById('posSection').classList.remove('hidden');
       document.getElementById('btnLogout').classList.remove('hidden');
       document.getElementById('headerTitle').textContent = activeKantin.nama;
-      document.getElementById('headerSubtitle').textContent = `Unit ID: ${activeKantin.id}`;
-      document.getElementById('labelKantinAktif').textContent = `Unit: ${activeKantin.nama}`;
+      document.getElementById('headerSubtitle').textContent = `Unit ID: ${activeKantin.id} • Asrama ${activeKantin.asrama || 'Semua'}`;
+      document.getElementById('labelKantinAktif').textContent = `Unit: ${activeKantin.nama} (${activeKantin.asrama || 'Semua'})`;
       muatDataKasir();
     }
 
@@ -414,21 +419,21 @@
       const icon = document.getElementById('iconRefreshPos');
       icon.classList.add('fa-spin');
       try {
-        const res = await fetch(`${API_URL}?action=getKasirData&kantin=${encodeURIComponent(activeKantin.nama)}`);
+        const asramaParam = encodeURIComponent(activeKantin.asrama || 'Semua');
+        const res = await fetch(`${API_URL}?action=getKasirData&kantin=${encodeURIComponent(activeKantin.nama)}&asrama=${asramaParam}`);
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
         daftarSantri = data.santri || [];
         riwayatHariIni = data.riwayat || [];
 
-        document.getElementById('santriCountBadge').textContent = `${daftarSantri.length} santri`;
+        document.getElementById('santriCountBadge').textContent = `${daftarSantri.length} santri (${activeKantin.asrama || 'Semua'})`;
         const totalOmzet = riwayatHariIni.reduce((acc, item) => acc + (Number(item.nominal) || 0), 0);
         document.getElementById('dispOmzetHariIni').textContent = formatRupiah(totalOmzet);
         document.getElementById('dispJumlahTrx').textContent = riwayatHariIni.length;
 
         renderRiwayatKantin();
 
-        // Update data santri terpilih jika sedang dibuka
         if (selectedSantri) {
           const updated = daftarSantri.find(s => s.nis === selectedSantri.nis);
           if (updated) pilihSantri(updated);
@@ -467,7 +472,10 @@
           if (found) {
             pilihSantri(found);
           } else {
-            alert(`NIS "${extractedNis}" tidak ditemukan di database santri.`);
+            const infoAsrama = (activeKantin.asrama && activeKantin.asrama.toLowerCase() !== 'semua')
+              ? ` pada asrama ${activeKantin.asrama}`
+              : '';
+            alert(`NIS "${extractedNis}" tidak ditemukan${infoAsrama}.`);
           }
         },
         () => {}
@@ -510,7 +518,7 @@
           <button type="button" onclick='pilihSantriByNis("${s.nis}")' class="w-full px-3.5 py-2.5 text-left hover:bg-teal-50 flex items-center justify-between transition">
             <div>
               <p class="text-xs font-bold text-slate-800">${s.nama}</p>
-              <p class="text-[10px] text-slate-500">NIS: ${s.nis} • Kelas ${s.kelas}</p>
+              <p class="text-[10px] text-slate-500">NIS: ${s.nis} • Kelas ${s.kelas} • ${s.asrama || 'Putra'}</p>
             </div>
             <span class="text-xs font-extrabold text-emerald-700">${formatRupiah(s.saldo)}</span>
           </button>
@@ -531,6 +539,7 @@
       document.getElementById('posError').classList.add('hidden');
 
       document.getElementById('posNis').textContent = santri.nis;
+      document.getElementById('posAsrama').textContent = santri.asrama || 'Putra';
       document.getElementById('posNama').textContent = santri.nama;
       document.getElementById('posKelas').textContent = santri.kelas || '-';
       document.getElementById('posKamar').textContent = santri.kamar || '-';
@@ -599,7 +608,6 @@
         return;
       }
 
-      // Cek cepat di sisi frontend sebelum kirim ke server
       if (nominal > Number(selectedSantri.saldo)) {
         errText.textContent = `Saldo tidak mencukupi! Sisa saldo: ${formatRupiah(selectedSantri.saldo)}.`;
         errBox.classList.remove('hidden');
@@ -633,7 +641,6 @@
         const result = await res.json();
         if (!result.success) throw new Error(result.error || 'Transaksi gagal diproses.');
 
-        // Tampilkan Struk Sukses
         document.getElementById('strukNamaSantri').textContent = `${selectedSantri.nama} (NIS ${selectedSantri.nis})`;
         document.getElementById('strukNominal').textContent = formatRupiah(nominal);
         document.getElementById('strukSisaSaldo').textContent = formatRupiah(result.sisa_saldo);
